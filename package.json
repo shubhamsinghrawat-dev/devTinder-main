@@ -1,0 +1,15 @@
+{
+  "name": "devtinder-main",
+  "version": "1.0.0",
+  "description": "Dev Tinder",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js"
+  },
+  "author": "Shubham Singh Rawat",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
