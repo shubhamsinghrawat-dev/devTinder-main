@@ -1,36 +1,159 @@
 const express = require("express");
-const { adminAuth } = require("../middlewares/auth");
-
+const bcrypt = require("bcrypt");
+const connectDB = require("./config/database");
 const app = express();
 const port = 3000;
 
+const User = require("./models/user");
+const {validateSignUpData} = require("./utils/validation") 
+// Middleware
+app.use(express.json()); 
 
-app.use("/admin", adminAuth);
-app.use("/user", adminAuth);
+// DB 
 
-app.post("/user/login", (req, res) => {
-  res.send("User loggedin !");
+connectDB()
+.then( () => {
+    console.log("Connected");
+    app.listen(port, () => {
+      console.log(` app listening on port ${port}`);
+    });
+})
+.catch( (err) => {
+    console.error("Database Can not connected!")
 });
 
-app.get("/user/data", (req, res) => {
-  res.send("User data sent..");
-});
 
-app.get("/admin/getAllData", (req, res) => {
-  res.send("All data sent..");
-});
+// signup API
 
-app.get("/admin/deleteData", (req, res) => {
-  res.send("data deleted..");
-});
+app.post("/signup", async (req, res) => {
+    // Validation of data
+    validateSignUpData(req);
+    const {firstName, lastName, emailId, gender, age, password} = req.body;
+    // Encrypt the pass
+    const passwordHash = await bcrypt.hash(password, 10)
 
+    //   New instance of user model
+    const user = new User({
+        firstName,
+        lastName, 
+        emailId,
+        gender, 
+        age,
+        password:passwordHash
+    });
 
-app.use("/", (err, req, res, next) => {
-  if(err){
-    res.status(500).send("Something went wrong")
+    try{
+        await user.save();
+        res.send("Added...!");
+    }
+    catch (err){
+        res.status(400).send("ERROR:" + err.message);
+    }
+})
+
+// Login API
+
+app.post("/login", async (req, res) => {
+    try{
+        const {emailId, password} = req.body;
+        const user = await User.findOne({emailId: emailId});
+        if(!user){
+            throw new Error("Invalid Credintial");
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if(isPasswordValid){
+            res.send("Login Succsessful!");
+        } else{
+            throw new Error("Invalid Credintial")
+        }
+    }
+    catch (err){
+        res.status(400).send("ERROR:" + err.message);
+    }
+})
+
+// Feed API - get all the users form the database
+
+app.get("/feed", async (req, res) => {
+
+    try {
+        const users = await User.find({})
+        if (users.length === 0) {
+            res.send("No user found")
+        } else {
+            console.log(users);
+            res.send(users)
+        }
+    }
+    catch (err) {
+        res.status(400).send("Something went wrong")
+    }
+
+})
+
+//user API to find the single user by by email
+
+app.get("/user", async (req, res) => {
+  //getting user from body
+  const userEmail = req.body.emailId;
+  try {
+      const users = await User.findOne({ emailId: userEmail })
+      if (users.length === 0) {
+          res.status(400).send("User not found")
+      } else {
+
+          // console.log(users)
+          res.send(users)
+      }
   }
-});
+  catch (err) {
+      res.status(400).send("Something went wrong")
+  }
+})
 
-app.listen(port, () => {
-  console.log(` app listening on port ${port}`);
-});
+//delete user API - deleting a user by its id
+
+app.delete("/user", async (req, res) => {
+    const userId = req.body.userId;
+
+    try {
+        const users = await User.findByIdAndDelete(userId);
+        res.send("User deleted Successfully")
+
+    } catch (err) {
+        res.status(400).send("Something went wrong")
+    }
+})
+
+// patch user API - updating the data of user
+
+app.patch("/user/:userId", async (req, res) => {
+    const userId = req.params?.userId;
+    const data = req.body;
+    try {
+        const ALLOWED_UPDATES = [
+          "photoURL",
+          "about",
+          "gender",
+          "skills",
+          "firstName",
+          "lastName",
+          "age"
+        ];
+
+        const isUpdateAllowed = Object.keys(data).every((k) => ALLOWED_UPDATES.includes(k));
+
+        if (!isUpdateAllowed) {
+            throw new Error("Update Not Allowed")
+        }
+        if (data?.skills?.length > 10) {
+            throw new Error("Only 10 Skills allowed")
+        }
+        const user = await User.findByIdAndUpdate({ _id: userId }, data, { returnDocument: "before", runValidators: "true" });
+        console.log(user)
+        res.send("User updated successfully")
+
+    } catch (err) {
+        res.status(400).send("Update Failes:" + err.message);
+    }
+})
