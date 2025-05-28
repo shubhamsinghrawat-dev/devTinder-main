@@ -93,7 +93,6 @@ app.get("/profile", async (req, res) => {
         }
         const decodedMsg = await jwt.verify(token, "DevTinder@2025");
         const { _id } = decodedMsg;
-        console.log("Logged in user is :" + _id);
         const user = await User.findById(_id);
         if(!user){
             throw new Error("User Does Not Exit!")
