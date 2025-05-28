@@ -3,11 +3,14 @@ const bcrypt = require("bcrypt");
 const connectDB = require("./config/database");
 const app = express();
 const port = 3000;
-
 const User = require("./models/user");
 const {validateSignUpData} = require("./utils/validation") 
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+
 // Middleware
 app.use(express.json()); 
+app.use(cookieParser()); 
 
 // DB 
 
@@ -62,10 +65,40 @@ app.post("/login", async (req, res) => {
         }
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if(isPasswordValid){
+
+            // JWT Token Creation
+            const token = await jwt.sign({ _id: user?.id }, "DevTinder@2025");
+            console.log(token);
+            // Add token to the cookie and send response back to the user
+            res.cookie("token", token);
             res.send("Login Succsessful!");
         } else{
             throw new Error("Invalid Credintial")
         }
+    }
+    catch (err){
+        res.status(400).send("ERROR:" + err.message);
+    }
+})
+
+// Profile 
+
+app.get("/profile", async (req, res) => {
+    try{
+        const cookies = req.cookies;
+        const { token } = cookies
+        // Validate Token
+        if(!token){
+            throw new Error("Invalid Token")
+        }
+        const decodedMsg = await jwt.verify(token, "DevTinder@2025");
+        const { _id } = decodedMsg;
+        console.log("Logged in user is :" + _id);
+        const user = await User.findById(_id);
+        if(!user){
+            throw new Error("User Does Not Exit!")
+        }        
+        res.send(user)
     }
     catch (err){
         res.status(400).send("ERROR:" + err.message);
